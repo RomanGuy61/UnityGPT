@@ -221,7 +221,7 @@ namespace GPTUnity
                             resRespond(res, Ok(new Dictionary<string, object>
                             {
                                 { "object", SceneTools.Describe(go, 0, false) },
-                                { "message", "Created \"" + go.name + "\" (" + go.GetInstanceID() + ")" }
+                                { "message", "Created \"" + go.name + "\" (" + SceneTools.IdToken(go) + ")" }
                             }));
                         });
                         break;
@@ -296,7 +296,7 @@ namespace GPTUnity
                             d["count"] = matches.Count;
                             d["matches"] = matches.Select(g => (object)new Dictionary<string, object>
                             {
-                                { "id", g.GetInstanceID() },
+                                { "id", SceneTools.IdToken(g) },
                                 { "name", g.name },
                                 { "path", SceneTools.GetPath(g) },
                                 { "active", g.activeInHierarchy }

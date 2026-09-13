@@ -39,7 +39,7 @@ Successful responses use `{"ok": true, ...}`; errors use `{"ok": false, "error":
    means the bridge is not running; do not fabricate results.
 2. Read before writing. For scenes use `GET /scene?depth=1` (raise `depth` only when needed; small
    scenes default to `depth=2`). Locate exact objects with `POST /object/find` (`{"name": "..."}`)
-   and get details with `POST /object/inspect` (`{"object": {"id": 123}}`).
+   and get details with `POST /object/inspect` (`{"object": {"id": "2896012345"}}`).
 3. List assets with `GET /assets?type=Prefab` or `?type=Material` before referencing paths; never
    guess asset paths.
 4. Prefer the typed endpoints. Fall back to `POST /code/execute` only when logic is beyond them
@@ -61,7 +61,7 @@ Successful responses use `{"ok": true, ...}`; errors use `{"ok": false, "error":
 | `GET /scene` | query `depth`, `full`, `noHierarchy` |
 | `POST /object/create` | `{"name": ..., "type": "cube"/"empty", "parent": {"id": ...}, "localPosition": [x,y,z], "localScale": [x,y,z], "select": true}` |
 | `POST /object/update` | `{"object": {"id":...}, "name": ..., "localPosition": [..], "localRotation": [..] (Euler), "localScale": [..], "active": true, "tag": ..., "layer": ...}` |
-| `POST /object/delete` | `{"object": {"id": 123}}` |
+| `POST /object/delete` | `{"object": {"id": "2896012345"}}` |
 | `POST /object/inspect` | `{"object": {...}, "includeFields": true}` |
 | `POST /object/select` | `{"object": {...}}` |
 | `POST /object/find` | `{"name": "Player", "limit": 50}` |
@@ -75,7 +75,8 @@ Successful responses use `{"ok": true, ...}`; errors use `{"ok": false, "error":
 | `POST /code/execute` | `{"code": "var go = GPT.Find(\"Player\"); GPT.Result(go.transform.position);"}` |
 | `POST /play` | `{"on": true}` / `{"on": false}` or `POST /pause` `{"on": true}` / `POST /stop` |
 
-**Object locators**: `object` may be `{"id": <instanceId>}` (most reliable), `{"name": "..."}`, or
+**Object locators**: `object` may be `{"id": "<idToken>"}` (most reliable — an opaque string from
+`/scene` or `/object/find`, valid only within this Editor session), `{"name": "..."}`, or
 `{"path": "Parent/Child"}`. Transforms are **local** by default; use `worldPosition` for absolute
 world position. Colors are `[r,g,b,a]` 0..1 floats or a `"#RRGGBB"` string.
 

@@ -36,6 +36,12 @@ namespace GPTUnity
         static readonly List<CodeExecutor> Active = new List<CodeExecutor>();
         static readonly object Lock = new object();
 
+        // Holds the last assemblyCompilationFinished messages for our bridge assembly.
+        // A successful compile triggers a domain reload that resets this (fine); a failed
+        // compile does NOT reload, so errors captured here are still present on the next
+        // EditorApplication.update tick where GetBridgeCompileErrors reads them.
+        static List<CompilerMessage> LastBridgeMessages = new List<CompilerMessage>();
+
         State state;
         DateTime wroteAt;
         DateTime deadline;
@@ -75,6 +81,9 @@ namespace GPTUnity
             if (name != "GPTUnityBridge.dll") return;
             lock (Lock)
             {
+                LastBridgeMessages = messages != null
+                    ? new List<CompilerMessage>(messages)
+                    : new List<CompilerMessage>();
                 foreach (var ex in Active)
                 {
                     if (ex.state == State.WaitingCompile)
@@ -101,7 +110,11 @@ namespace GPTUnity
             bool kicked = MainThread.Execute(() =>
             {
                 SessionState.SetString(SessionKey, Json.Serialize(session));
-                lock (Lock) Active.Clear();
+                lock (Lock)
+                {
+                    Active.Clear();
+                    LastBridgeMessages = null;
+                }
                 EnsureHooks();
                 Active.Add(new CodeExecutor(code, resultFile, State.Writing, timeoutSec));
                 return true;
@@ -211,17 +224,17 @@ namespace GPTUnity
 
                 case State.WaitingCompile:
                 {
-                    string errs = GetBridgeCompileErrors();
-                    if (!string.IsNullOrEmpty(errs))
+                    if (TryFindHost())
                     {
-                        WriteResult(new ExecutionResult { ok = false, error = "Compile failed:\n" + errs });
+                        RunBridge();
                         ClearSession();
                         state = State.Done;
                         break;
                     }
-                    if (TryFindHost())
+                    string errs = GetBridgeCompileErrors();
+                    if (!string.IsNullOrEmpty(errs))
                     {
-                        RunBridge();
+                        WriteResult(new ExecutionResult { ok = false, error = "Compile failed:\n" + errs });
                         ClearSession();
                         state = State.Done;
                         break;
@@ -340,22 +353,21 @@ namespace GPTUnity
 
         static string GetBridgeCompileErrors()
         {
-            try
+            List<CompilerMessage> msgs;
+            lock (Lock)
             {
-                var msgs = CompilationPipeline.GetLastCompilationErrors();
-                var sb = new System.Text.StringBuilder();
-                foreach (var m in msgs)
-                {
-                    if (m.type != CompilerMessageType.Error) continue;
-                    if (string.IsNullOrEmpty(m.fileName) || m.fileName.IndexOf("GPTUnity_Generated_Bridge", StringComparison.OrdinalIgnoreCase) < 0) continue;
-                    sb.AppendLine(m.fileName + (m.line > 0 ? "(" + m.line + "): " : ": ") + m.message);
-                }
-                return sb.ToString();
+                msgs = LastBridgeMessages;
+                LastBridgeMessages = null;
             }
-            catch
+            if (msgs == null || msgs.Count == 0) return null;
+            var sb = new System.Text.StringBuilder();
+            foreach (var m in msgs)
             {
-                return null;
+                if (m.type != CompilerMessageType.Error) continue;
+                if (string.IsNullOrEmpty(m.fileName) || m.fileName.IndexOf("GPTUnity_Generated_Bridge", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                sb.AppendLine(m.fileName + (m.line > 0 ? "(" + m.line + "): " : ": ") + m.message);
             }
+            return sb.ToString();
         }
 
         static Type FindHostType()

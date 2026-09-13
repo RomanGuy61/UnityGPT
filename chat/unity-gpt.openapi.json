@@ -427,7 +427,7 @@
         "type": "object",
         "description": "Locate a GameObject. Provide exactly one of these keys.",
         "properties": {
-          "id": { "type": "integer", "description": "Unity instance id returned by /scene or /object/find." },
+          "id": { "type": "string", "description": "Session id token (opaque string) returned by /scene or /object/find. Valid only within one Editor session." },
           "name": { "type": "string", "description": "Exact object name." },
           "path": { "type": "string", "description": "Hierarchy path e.g. \"Level/Enemies/Grunt\"." }
         }

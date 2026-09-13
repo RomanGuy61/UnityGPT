@@ -19,7 +19,7 @@ The bridge is token-authenticated. Every request must include the header `X-Auth
 
 `/object/update`, `/object/delete`, `/object/inspect`, `/object/select`, `/component/*` and `/prefab/instantiate` take an `object` locator. Provide one of:
 
-- `{"object": {"id": 123}}` — instance id from `/scene` or `/object/find` (most reliable)
+- `{"object": {"id": "12345"}}` — session id token (opaque string) from `/scene` or `/object/find` (most reliable)
 - `{"object": {"name": "Cube"}}` — exact name
 - `{"object": {"path": "Room/Tables/Table_A"}}` — hierarchy path
 

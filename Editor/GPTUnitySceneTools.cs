@@ -29,10 +29,41 @@ namespace GPTUnity
     /// </summary>
     public static class SceneTools
     {
+        // ---------------- Object identity ----------------
+        //
+        // Unity 6.4+ moves object identity from the 32-bit int InstanceID to the 64-bit
+        // EntityId struct; from Unity 6.5 the old int APIs are compile errors. The bridge
+        // exposes a stable session-scoped "id" string token so the JSON contract does not
+        // depend on the internal representation. The token round-trips within one Editor
+        // session regardless of version.
+
+        public static string IdToken(UnityEngine.Object o)
+        {
+            if (o == null) return null;
+#if UNITY_6000_4_OR_NEWER
+            return EntityId.ToULong(o.GetEntityId()).ToString();
+#else
+            return o.GetInstanceID().ToString();
+#endif
+        }
+
+        public static UnityEngine.Object ObjectFromIdToken(string token)
+        {
+            if (string.IsNullOrEmpty(token)) return null;
+#if UNITY_6000_4_OR_NEWER
+            if (ulong.TryParse(token, out ulong raw))
+                return EditorUtility.EntityIdToObject(EntityId.FromULong(raw));
+#else
+            if (int.TryParse(token, out int instanceId))
+                return EditorUtility.InstanceIDToObject(instanceId);
+#endif
+            return null;
+        }
+
         // ---------------- Locating objects ----------------
 
         /// <summary>
-        /// Accepts a locator dict that may contain any of: "id" (instance id),
+        /// Accepts a locator dict that may contain any of: "id" (session id token string),
         /// "path" (hierarchy path), "name" (exact name). Called on the main thread.
         /// </summary>
         public static GameObject Resolve(Dictionary<string, object> locator)
@@ -40,17 +71,10 @@ namespace GPTUnity
             if (locator == null)
                 throw new ApiException("Missing object locator. Provide \"id\", \"path\" or \"name\".");
 
-            if (locator.TryGetValue("id", out object idObj))
+            if (locator.TryGetValue("id", out object idObj) && idObj != null)
             {
-                long id = -1;
-                if (idObj is long l) id = l;
-                else if (idObj is double dd) id = (long)dd;
-                else long.TryParse(idObj?.ToString(), out id);
-                if (id > 0)
-                {
-                    var obj = EditorUtility.InstanceIDToObject((int)id);
-                    if (obj is GameObject go) return go;
-                }
+                var obj = ObjectFromIdToken(Convert.ToString(idObj, CultureInfo.InvariantCulture));
+                if (obj is GameObject go) return go;
             }
 
             if (locator.TryGetValue("path", out object pathObj) && pathObj is string path && !string.IsNullOrEmpty(path))
@@ -164,7 +188,7 @@ namespace GPTUnity
         static Dictionary<string, object> DescribeNode(GameObject go, int maxDepth, bool full, int depth)
         {
             var d = new Dictionary<string, object>();
-            d["id"] = go.GetInstanceID();
+            d["id"] = IdToken(go);
             d["name"] = go.name;
             d["active"] = go.activeSelf;
             d["activeInHierarchy"] = go.isActiveInHierarchy;
@@ -188,7 +212,7 @@ namespace GPTUnity
             {
                 d["parent"] = new Dictionary<string, object>
                 {
-                    { "id", go.transform.parent.gameObject.GetInstanceID() },
+                    { "id", IdToken(go.transform.parent.gameObject) },
                     { "name", go.transform.parent.name }
                 };
             }

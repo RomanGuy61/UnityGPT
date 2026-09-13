@@ -40,7 +40,7 @@ localhost HTTP requests ──► Unity Editor (HttpListener, background thread)
 
 ## Install
 
-Works with Unity 2021.3+. Install as a package via the Package Manager:
+Works with Unity 2021.3+, **including Unity 6.5/6.6** (where Unity's legacy `InstanceID` APIs are removed). The bridge hides Unity's internal object identity behind an opaque `id` token, so the same JSON contract works across versions. Install as a package via the Package Manager:
 
 1. Open your project in Unity and go to **Window > Package Manager**.
 2. Click **+** → **Add package from git URL...**.
@@ -109,7 +109,7 @@ All request/response bodies are JSON. Errors come back as `{"ok":false,"error":"
 | `POST` | `/stop` | Stop play mode. |
 | `POST` | `/server/stop` | Stop the bridge server. |
 
-**Object locators**: `/object/*`, `/component/*` and `/prefab/instantiate` accept the target under `object` (or `target`) as `{"id":123}` (instance id), `{"name":"Cube"}`, or `{"path":"Room/Tables/Table_A"}`.
+**Object locators**: `/object/*`, `/component/*` and `/prefab/instantiate` accept the target under `object` (or `target`) as `{"id":"12345"}` (opaque session id token string, from `/scene` or `/object/find`), `{"name":"Cube"}`, or `{"path":"Room/Tables/Table_A"}`.
 
 **Coordinates** are local by default (`localPosition`, `localRotation` in Euler degrees, `localScale` as `[x,y,z]`); use `worldPosition` when needed.
 

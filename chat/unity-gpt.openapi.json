@@ -1,0 +1,445 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "GPTUnity Bridge API",
+    "version": "1.0.0",
+    "description": "Local API for the Unity Editor exposed by the GPTUnity Bridge package. Lets ChatGPT inspect and edit scenes, objects, components, materials and assets, control play mode, and execute arbitrary C# inside the Editor.\n\nSECURITY: every request must include the header X-Auth-Token set to the token shown in the GPTUnity Bridge window in Unity (Window > GPTUnity Bridge).\n\nAll responses are JSON objects with \"ok\": true on success and {\"ok\": false, \"error\": \"...\"} on failure."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8765",
+      "description": "Loopback only. Change the port to match the GPTUnity Bridge window if you customized it."
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Check that the bridge is reachable and see Unity/project info.",
+        "description": "Call this first. Returns service name, version, Unity version, project name, play mode state, active scene and port.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/status": {
+      "get": {
+        "operationId": "status",
+        "summary": "Bridge status: running, port, URL.",
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/project": {
+      "get": {
+        "operationId": "projectInfo",
+        "summary": "Project name, assets path, Unity version, build target, active scene, scenes in Build Settings.",
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/scenes": {
+      "get": {
+        "operationId": "listScenes",
+        "summary": "List all .unity scene assets in the project with their paths.",
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/scene": {
+      "get": {
+        "operationId": "getScene",
+        "summary": "Read the currently open scene's hierarchy as JSON.",
+        "description": "Returns the scene name/path, play mode state, total object count, and the root objects. Each object has id, name, path, active, tag, layer, transform values, and child trees.\nUse depth to cap recursion (0 = roots only, 2 = grandchildren), full=1 to also dump serialized component fields (can be large).",
+        "parameters": [
+          { "name": "depth", "in": "query", "required": false, "schema": { "type": "integer", "default": 2 }, "description": "How many levels of children to recurse. 0 = roots only." },
+          { "name": "full", "in": "query", "required": false, "schema": { "type": "integer", "default": 0 }, "description": "Set 1 to include serialized component fields (large)." },
+          { "name": "noHierarchy", "in": "query", "required": false, "schema": { "type": "integer", "default": 0 }, "description": "Set 1 to skip the tree and only return counts." }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/scene/open": {
+      "post": {
+        "operationId": "openScene",
+        "summary": "Open a different scene (e.g. Assets/Scenes/Main.unity).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["path"],
+                "properties": {
+                  "path": { "type": "string", "description": "Scene asset path. \"Assets/Scenes/Main.unity\" (or an abbreviated path unique enough)." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/scene/save": {
+      "post": {
+        "operationId": "saveScene",
+        "summary": "Save the current scene. Optionally save to a new path.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": { "type": "string", "description": "Optional new path (Assets/...). Omit to save in place." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/object/create": {
+      "post": {
+        "operationId": "createObject",
+        "summary": "Create a new GameObject: primitive, empty, or instantiate a prefab.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "description": "Object name." },
+                  "primitive": { "type": "string", "enum": ["Cube", "Sphere", "Capsule", "Cylinder", "Plane", "Quad", "Empty"], "description": "Create a built-in primitive. Use \"Empty\" for an empty object." },
+                  "prefab": { "type": "string", "description": "Alternative to primitive: prefab asset path or name (from /assets?type=Prefab)." },
+                  "parent": { "$ref": "#/components/schemas/ObjectLocator", "description": "Optional parent to attach under." },
+                  "localPosition": { "$ref": "#/components/schemas/Vec3" },
+                  "localRotation": { "$ref": "#/components/schemas/Vec3", "description": "Euler degrees." },
+                  "localScale": { "$ref": "#/components/schemas/Vec3" },
+                  "select": { "type": "boolean", "default": false, "description": "Select + frame it in the editor." }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } } }
+      }
+    },
+    "/object/update": {
+      "post": {
+        "operationId": "updateObject",
+        "summary": "Update an existing object: rename, active, tag, layer, or transform.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "object": { "$ref": "#/components/schemas/ObjectLocator" },
+                  "name": { "type": "string" },
+                  "active": { "type": "boolean" },
+                  "tag": { "type": "string", "description": "Must already exist as a tag." },
+                  "layer": { "type": "integer" },
+                  "layerName": { "type": "string" },
+                  "localPosition": { "$ref": "#/components/schemas/Vec3" },
+                  "localRotation": { "$ref": "#/components/schemas/Vec3" },
+                  "localScale": { "$ref": "#/components/schemas/Vec3" },
+                  "worldPosition": { "$ref": "#/components/schemas/Vec3" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/object/delete": {
+      "post": {
+        "operationId": "deleteObject",
+        "summary": "Delete an object from the scene. Irreversible (well, Unity Undo in editor works). Use with care.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "object": { "$ref": "#/components/schemas/ObjectLocator" } } } } } },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/object/inspect": {
+      "post": {
+        "operationId": "inspectObject",
+        "summary": "Inspect an object: all components and their serialized fields.",
+        "description": "Returns components with their property paths (see \"field\" paths) that can be fed back into /component/set.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "object": { "$ref": "#/components/schemas/ObjectLocator" },
+                  "includeFields": { "type": "boolean", "default": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/object/select": {
+      "post": {
+        "operationId": "selectObject",
+        "summary": "Select and frame an object in the editor Scene view (useful so the user sees where you worked).",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "object": { "$ref": "#/components/schemas/ObjectLocator" } } } } } },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/object/find": {
+      "post": {
+        "operationId": "findObjects",
+        "summary": "Find scene objects by name (case-insensitive substring).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "limit": { "type": "integer", "default": 50 }
+                },
+                "required": ["name"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/component/add": {
+      "post": {
+        "operationId": "addComponent",
+        "summary": "Add a component to an object by type name (e.g. Rigidbody, BoxCollider, MeshRenderer, Light, Camera).",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "object": { "$ref": "#/components/schemas/ObjectLocator" }, "type": { "type": "string" } }, "required": ["type"] } } } },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/component/remove": {
+      "post": {
+        "operationId": "removeComponent",
+        "summary": "Remove a component from an object by type name.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "object": { "$ref": "#/components/schemas/ObjectLocator" }, "type": { "type": "string" } }, "required": ["type"] } } } },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/component/set": {
+      "post": {
+        "operationId": "setComponentField",
+        "summary": "Set a serialized field on a component using the property path returned by /object/inspect.",
+        "description": "Example: object{Cube}, type=MeshRenderer, field=\"m_Materials.Array.data[0]\", value={\"object\": {...,\"path\":\"Assets/Materials/Red.mat\",},\"value\": ...} to reference an asset, or simpler fields like field=\"m_Enabled\" value=true.\nValues are coerced: integers, floats, booleans, strings, colors as [r,g,b,a] or \"#RRGGBB\", vectors as arrays.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "object": { "$ref": "#/components/schemas/ObjectLocator" },
+                  "type": { "type": "string", "description": "Component type name (from inspect)." },
+                  "field": { "type": "string", "description": "SerializedProperty path from /object/inspect." },
+                  "value": { "description": "New value. Primitive, array or {value: ...}." }
+                },
+                "required": ["type", "field", "value"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/assets": {
+      "get": {
+        "operationId": "listAssets",
+        "summary": "Search assets in the project.",
+        "description": "type can be Prefab, Material, Texture, Sprite, Scene, AnimationClip, AudioClip, Shader, ScriptableObject. name filters by substring. Use this before creating or instantiating so ChatGPT knows what prefabs/materials exist.",
+        "parameters": [
+          { "name": "type", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "name", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "default": 200 } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/prefab/instantiate": {
+      "post": {
+        "operationId": "instantiatePrefab",
+        "summary": "Instantiate a prefab into the active scene.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prefab": { "type": "string", "description": "Prefab asset path or name from /assets?type=Prefab." },
+                  "parent": { "$ref": "#/components/schemas/ObjectLocator" },
+                  "localPosition": { "$ref": "#/components/schemas/Vec3" },
+                  "localRotation": { "$ref": "#/components/schemas/Vec3" },
+                  "localScale": { "$ref": "#/components/schemas/Vec3" },
+                  "select": { "type": "boolean", "default": false }
+                },
+                "required": ["prefab"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/material/create": {
+      "post": {
+        "operationId": "createMaterial",
+        "summary": "Create a new material asset under Assets/GPTUnity_Materials/.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "color": { "description": "RGBA as [r,g,b,a] (0..1) or \"#RRGGBB\" (optional)." }
+                },
+                "required": ["name"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/material/set": {
+      "post": {
+        "operationId": "setMaterialProperty",
+        "summary": "Change a shader property on a material.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "material": { "type": "string", "description": "Material asset path or name from /assets?type=Material." },
+                  "property": { "type": "string", "description": "Shader property name e.g. _BaseColor, _Metallic, _Glossiness, _MainTex, _EmissionColor." },
+                  "type": { "type": "string", "enum": ["color", "float", "texture"], "default": "color" },
+                  "value": { "description": "For color: [r,g,b,a] or hex. For float: number. For texture: texture asset path or name." }
+                },
+                "required": ["material", "property", "type", "value"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/code/execute": {
+      "post": {
+        "operationId": "executeCode",
+        "summary": "Execute arbitrary C# inside the Unity Editor.",
+        "description": "Most powerful tool. The code runs as the body of a static method on the main thread.\nAvailable helpers on GPT: GPT.Log(object) adds to the returned logs; GPT.Result(object) returns a value; GPT.Find(name), GPT.FindAll(name), GPT.Select(go), GPT.Destroy(go), GPT.SetDirty(o). You may use any UnityEngine/UnityEditor API.\nThe returned JSON has logs (array of strings) and result.\nCompilation takes a few seconds (the editor reloads). If there is a compile error it is returned as error with logs.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": { "type": "string", "description": "C# statements. Wrap in try/catch yourself if you want graceful failures." },
+                  "timeoutSec": { "type": "integer", "default": 180 }
+                },
+                "required": ["code"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/play": {
+      "post": {
+        "operationId": "enterPlayMode",
+        "summary": "Enter or exit Play mode.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "on": { "type": "boolean", "default": true } } } } } },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/pause": {
+      "post": {
+        "operationId": "pauseGame",
+        "summary": "Pause or unpause Play mode.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "on": { "type": "boolean", "default": true } } } } } },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/stop": {
+      "post": {
+        "operationId": "stopGame",
+        "summary": "Exit Play mode.",
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/server/stop": {
+      "post": {
+        "operationId": "stopServer",
+        "summary": "Stop the bridge server (use only if asked).",
+        "responses": { "200": { "description": "OK" } }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Auth-Token",
+        "description": "Set to the token shown in Unity under Window > GPTUnity Bridge."
+      }
+    },
+    "schemas": {
+      "Vec3": {
+        "type": "array",
+        "items": { "type": "number" },
+        "minItems": 3,
+        "maxItems": 3,
+        "example": [0, 1, 0],
+        "description": "Floats. For rotation, Euler degrees."
+      },
+      "ObjectLocator": {
+        "type": "object",
+        "description": "Locate a GameObject. Provide exactly one of these keys.",
+        "properties": {
+          "id": { "type": "integer", "description": "Unity instance id returned by /scene or /object/find." },
+          "name": { "type": "string", "description": "Exact object name." },
+          "path": { "type": "string", "description": "Hierarchy path e.g. \"Level/Enemies/Grunt\"." }
+        }
+      }
+    }
+  },
+  "tags": [
+    { "name": "system", "description": "Health, status, project, play mode, server control." },
+    { "name": "scene", "description": "Read/open/save scenes." },
+    { "name": "object", "description": "Create/update/delete/inspect/find GameObjects." },
+    { "name": "component", "description": "Add/remove/set component fields." },
+    { "name": "asset", "description": "Search assets; instantiate prefabs; materials." },
+    { "name": "code", "description": "Execute arbitrary C# in the editor." }
+  ]
+}

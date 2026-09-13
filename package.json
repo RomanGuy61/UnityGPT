@@ -1,0 +1,22 @@
+{
+  "name": "com.gptunity.bridge",
+  "version": "1.0.0",
+  "displayName": "GPTUnity Bridge",
+  "description": "A local HTTP bridge that lets the ChatGPT desktop app (via a custom GPT Action) inspect and drive your Unity Editor: scenes, objects, components, materials, assets, and arbitrary C# execution. Editor only.",
+  "unity": "2021.3",
+  "author": {
+    "name": "GPTUnity",
+    "url": "https://github.com/"
+  },
+  "keywords": [
+    "chatgpt",
+    "gpt",
+    "ai",
+    "bridge",
+    "http",
+    "editor"
+  ],
+  "type": "tool",
+  "documentationUrl": "https://github.com/",
+  "licensesUrl": "https://github.com/"
+}

@@ -1,0 +1,27 @@
+{
+  "name": "gptunity",
+  "interface": {
+    "displayName": "GPTUnity Bridge"
+  },
+  "plugins": [
+    {
+      "name": "gptunity-bridge",
+      "source": "./codex",
+      "description": "Control a locally running Unity Editor through the GPTUnity Bridge HTTP API: scenes, GameObjects, components, materials, assets, play mode, and arbitrary C# execution.",
+      "category": "Development",
+      "homepage": "https://github.com/",
+      "author": {
+        "name": "GPTUnity"
+      },
+      "license": "MIT",
+      "keywords": [
+        "unity",
+        "gptunity",
+        "editor",
+        "bridge",
+        "game-development",
+        "http"
+      ]
+    }
+  ]
+}

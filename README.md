@@ -175,6 +175,22 @@ ChatGPT's web UI executes Actions from OpenAI's servers and cannot reach your `1
 
 ---
 
+## Use with Codex
+
+The repo doubles as a **Codex marketplace** so Codex agents can get a skill for driving a locally
+running Unity Editor through the bridge:
+
+```bash
+codex mkt add /home/Roman-Bazzite/Documents/GPTUnity
+```
+
+The marketplace provides one plugin (`gptunity-bridge`) with the `gptunity-bridge` skill. After
+adding, enable it in the Codex plugins UI (or `[plugins."gptunity-bridge@gptunity"] enabled = true`
+in `~/.codex/config.toml`). The skill loads the same workflow the ChatGPT GPT uses: health check,
+read before writing, typed endpoints first, `/code/execute` as the escape hatch.
+
+---
+
 ## Files
 
 ```
@@ -187,6 +203,11 @@ Editor/
   GPTUnityJson.cs            dependency-free JSON parser/serializer
   GPTUnityMainThread.cs      main-thread dispatcher
   GPTUnityBridgeWindow.cs    Window > GPTUnity Bridge UI
+.claude-plugin/
+  marketplace.json           Codex/Claude marketplace manifest (gptunity)
+codex/
+  .codex-plugin/plugin.json  codex plugin manifest
+  skills/gptunity-bridge/    SKILL.md workbook for Codex agents
 chat/
   unity-gpt.openapi.json     OpenAPI 3.0.3 schema for the ChatGPT Action
   unity-gpt-instructions.md  copy-paste instruction block for the GPT
